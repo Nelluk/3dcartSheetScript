@@ -1,12 +1,12 @@
-// THIS SCRIPT NEEDS TO BE ATTACHED TO A SPREADSHEET
-// Create a Google Spreadsheet, go to Tools>Script Editor, and copy each of these files into a blank script.
-
 function exampleQuery() {
   // This is an example of how to run a query with your own function (not from the menu). Results will be appended
   // to the first sheet.
   
-  var query = "SELECT invoicenum,ofirstname,olastname from orders WHERE order_status=2";
+  var query = "SELECT TOP 5 email,custenabled,maillist from customers WHERE maillist=1;";
   var result = queryCart(query);
 
-  resultToSheet(result);
+  var result_array = xmlResultToArray(result, true);
+  arrayToSheet(result_array);
+  Logger.log("Number of results:" + result_array.length);
+  addQueryHistory(query, result_array.length);
 }

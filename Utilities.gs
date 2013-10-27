@@ -20,109 +20,80 @@ function queryCart(strSql) {
   
 //  var envelope = cartAPI.getSoapEnvelope("runQuery", param); // Use to examine request without sending
   
-  var result = cartAPI.invokeOperation("runQuery", [param]);
-  var result_json = xmlToJson_(result.Envelope.Body.runQueryResponse.runQueryResult);
-  
-  return result_json;
-}
+  var result_full = cartAPI.invokeOperation("runQuery", [param]);
+  var result = result_full.Envelope.Body.runQueryResponse.runQueryResult;
 
-
-function exampleQuery3() {
-  // This is an example of how to run a query with your own function (not from the menu). Results will be appended
-  // to the first sheet.
-  
-  var query = "SELECT invoicenum,ofirstname,olastname FROM orders WHERE order_status IN (1,2) AND (oshipaddress <> oaddress)";
-  var result = queryCart(query);
-
-  resultToSheet(result);
+  return result;
 }
 
 
 
 
-function resultToSheet(result) {
-  // Takes a result of a query, converts it to arrays of data, and appends it to the spreadsheet
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheets()[0];
+
+
+function xmlResultToArray(xml, include_headers) {
+  // Given raw XML from queryCart() function, transforms into a two-dimensional array:
+  // [[Result1-Field1,Result1-Field2],[Result2-Field1,Result2-Field2]]
+  // This is how Google Docs represents a spreadsheet's rows and columns.
+  // If 'true' is given as the second argument, the first row of the returned array will include field names.
   
+  var return_array = [];
+  var headers = [];
   
-  if ("Error" in result) {
-    Logger.log("Error during call: " + result["Error"]);
-    sheet.appendRow([["Error"],[result["Error"]]]);
-    return;
+  if ("Error" in xml) {
+    var error_msg = xml.Error.getText();
+    Logger.log("Error in result: " + error_msg);
+    return_array.push([["Error"],[error_msg]]);
+    return return_array;
   }
   
-  
-  
-  if ("Error" in result['runQueryResponse']) {
-    Logger.log("Error during call: " + result['runQueryResponse']['Error']['Description']);
-    sheet.appendRow([["Error"],[result['runQueryResponse']['Error']['Description']]]);
-    return;
+  if ("Error" in xml.runQueryResponse) {
+    var error_msg = xml.runQueryResponse.Error["Description"].getText();
+    Logger.log("Error in result: " + error_msg);
+    return_array.push([["Error"],[error_msg]]);
+    return return_array;
   }
   
+  // No errors in results if we've reached this point.
+  var results = [].concat(xml.runQueryResponse.runQueryRecord);
   
-  
-  var data = [].concat(result["runQueryResponse"]["runQueryRecord"]);
-  Logger.log(data.length);
-  for (var i = 0; i < data.length; i++) {
+  for (var i = 0; i < results.length; i++) {
+    var elems = results[i].getElements();
     var row = [];
-    var header = [];
-    for (var keys in data[i]) {
-      row.push(data[i][keys]);
-      if (i == 0) {
-        header.push(keys);
+    for (var j = 0; j < elems.length; j++) {
+      row.push(elems[j].getText());
+      if(i == 0) {
+        headers.push(elems[j].getName().getLocalName());
       }
+      
     }
-    if (i==0) {sheet.appendRow(header);};
-    sheet.appendRow(row);
+    if(i == 0 && include_headers == true) {return_array.push(headers);}
+    return_array.push(row);
   }
+  
+  return return_array;
 }
 
 
 
 
-
-
-function xmlToJson_(xml) {
- // Converts a given xml element to JSON object. If no XML is supplied will use the root-level element of the
- // request object. Adapted from http://davidwalsh.name/convert-xml-json
+function arrayToSheet(data_array) {
+  // Takes a two dimensional array as data_array (from the xmlResultToArray function)
+  // and replaces the contents of the 'Results' sheet with that data.
   
-  // Create the return object
-  var obj = {};
-  var xmltext = xml.getText();
-
-  if (xmltext.length == 0) { // element
-    // do attributes
-    if (xml.getAttributes().length > 0) {
-    obj["@attributes"] = {};
-      for (var j = 0; j < xml.getAttributes().length; j++) {
-        var attribute = xml.getAttributes()[j];
-        obj["@attributes"][attribute.getName().getLocalName()] = attribute.getValue();
-      }
-    }
-  } else { // text
-    obj = xmltext;
-  }
-
-  // do children
-  if (xml.getElements().length) {
-    for(var i = 0; i < xml.getElements().length; i++) {
-      var item = xml.getElements()[i];
-      var nodeName = item.getName().getLocalName();
-      if (typeof(obj[nodeName]) == "undefined") {
-        obj[nodeName] = this.xmlToJson_(item);
-      } else {
-        if (typeof(obj[nodeName].push) == "undefined") {
-          var old = obj[nodeName];
-          obj[nodeName] = [];
-          obj[nodeName].push(old);
-        }
-        obj[nodeName].push(this.xmlToJson_(item));
-      }
-    }
-  }
-  return obj;
-};
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Results");
+  
+  if (!sheet) {
+    // If there is not already a 'Results' sheet, create a fresh one.
+    sheet = ss.insertSheet("Results",0);
+  } 
+  
+  
+  
+  sheet.getDataRange().clearContent(); // Clear contents of sheet
+  sheet.getRange(1, 1, data_array.length, data_array[0].length).setValues(data_array);
+}
 
 
 
@@ -144,4 +115,31 @@ function loadSettingsFromSheet() {
   Logger.log("Loaded API key from settings: " + api_key);
   Logger.log("Loaded store URL from settings: " + store_url);
   return;
+}
+
+
+
+function addQueryHistory(query,num_results) {
+
+  //For todays date;
+  Date.prototype.today = function(){ 
+    return ((this.getDate() < 10)?"0":"") + this.getDate() +"/"+(((this.getMonth()+1) < 10)?"0":"") + (this.getMonth()+1) +"/"+ this.getFullYear();
+  };
+  //For the time now
+  Date.prototype.timeNow = function(){
+     return ((this.getHours() < 10)?"0":"") + this.getHours() +":"+ ((this.getMinutes() < 10)?"0":"") + this.getMinutes() +":"+ ((this.getSeconds() < 10)?"0":"") + this.getSeconds();
+  };
+  
+  var newDate = new Date();
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("History");
+  
+  if (!sheet) {
+    Logger.log("No sheet named 'History'. Nothing added.");
+    return;
+  }
+  
+  sheet.appendRow([newDate.today() + " @ " + newDate.timeNow(), num_results,query]);
+  
 }
