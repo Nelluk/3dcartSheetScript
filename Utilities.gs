@@ -90,7 +90,7 @@ function xmlToJson_(xml) {
   // Create the return object
   var obj = {};
   var xmltext = xml.getText();
-  var foo = xmltext.length;
+
   if (xmltext.length == 0) { // element
     // do attributes
     if (xml.getAttributes().length > 0) {

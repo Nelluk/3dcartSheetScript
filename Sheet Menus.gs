@@ -28,7 +28,7 @@ function example1() {
   // Example query in menu, list all orders with an order_status of 1 (new orders)
   Browser.msgBox('The current sheet will be appended with the results of this query.');
   
-  var query = "SELECT invoicenum,ofirstname,olastname from orders WHERE order_status=1;"
+  var query = "SELECT invoicenum,ofirstname,olastname from orders WHERE order_status=1;";
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheets()[0];
   sheet.appendRow([["This query:"],[query]]);
